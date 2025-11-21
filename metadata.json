@@ -1,0 +1,8 @@
+{
+  "name": "PharmaAI Asistan",
+  "description": "Eczacılar için yapay zeka destekli ilaç öneri, reçete analizi ve sesli asistan uygulaması.",
+  "requestFramePermissions": [
+    "camera",
+    "microphone"
+  ]
+}
