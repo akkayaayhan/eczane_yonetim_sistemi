@@ -26,7 +26,7 @@ const getAPIKey = () => {
 const getAI = () => {
   const key = getAPIKey();
   if (!key) {
-    throw new Error("API Anahtarı bulunamadı. Lütfen Vercel ayarlarından API_KEY ekleyin.");
+    throw new Error("API Anahtarı bulunamadı. Lütfen Vercel ayarlarından API_KEY veya VITE_API_KEY ekleyin.");
   }
   return new GoogleGenAI({ apiKey: key });
 };
@@ -41,8 +41,8 @@ export const getRecommendation = async (
 ): Promise<string> => {
   try {
     const ai = getAI();
-    // Envanteri optimize et (Sadece gerekli alanlar)
-    const inventoryContext = JSON.stringify(inventory.slice(0, 100).map(p => ({ 
+    // Envanteri optimize et (Sadece gerekli alanlar ve limitli sayıda)
+    const inventoryContext = JSON.stringify(inventory.slice(0, 80).map(p => ({ 
       name: p.name, 
       cat: p.category, 
       desc: p.description, 
@@ -72,7 +72,7 @@ export const getRecommendation = async (
     `;
 
     const response = await ai.models.generateContent({
-      model: 'gemini-2.5-flash', // Flash is faster and sufficient
+      model: 'gemini-2.5-flash', 
       contents: prompt,
     });
 
@@ -89,28 +89,31 @@ export const getRecommendation = async (
 export const createPharmacyChat = (inventory: Product[]) => {
   const ai = getAI();
   
-  // Token limitini aşmamak için envanteri özetle (Maksimum 50 ürün detaylı, gerisi liste)
-  const inventorySummary = inventory.slice(0, 50).map(p => 
-    `${p.name} (${p.category}): ${p.description} - Kullanım: ${p.usage}`
+  // OPTIMIZATION: Büyük envanterler hataya neden olur. Veriyi küçültüyoruz.
+  // Sadece ilk 50 ürünü detaylı al, geri kalanını alırsak token limiti dolabilir.
+  const inventorySummary = inventory.slice(0, 60).map(p => 
+    `- ${p.name} (${p.category}): ${p.usage}`
   ).join("\n");
 
   const systemInstruction = `
-    Sen PharmaAI, yardımsever bir eczacı asistanısın.
+    Sen PharmaAI, profesyonel ve yardımsever bir eczacı asistanısın.
     
-    KURALLAR:
-    1. Sadece Türkçe konuş.
-    2. Kullanıcı bir sağlık sorunu belirttiğinde ÖNCELİKLE aşağıdaki envanter listesinden ürün öner.
-    3. Envanterde olmayan bir şey sorsalar bile genel tıbbi bilgi ver ama "Doktora danışın" uyarısını ekle.
-    4. Kısa ve net cevaplar ver.
-    
-    MEVCUT ENVANTER:
-    ${inventorySummary || "Envanter şu an boş."}
+    GÖREVLERİN:
+    1. Kullanıcının sağlık sorunlarını dinle.
+    2. Aşağıdaki "MEVCUT STOK LİSTESİ" içinden uygun ilaç varsa öner.
+    3. Eğer stokta yoksa, genel tıbbi tavsiye ver ama "Stoklarımızda bulunmamaktadır" diye belirt.
+    4. Her zaman "Bu bir tıbbi tavsiye değildir, doktora danışın" uyarısını yap.
+    5. Türkçe konuş. Kısa, net ve anlaşılır cevaplar ver.
+
+    MEVCUT STOK LİSTESİ (Sadece bunları öner):
+    ${inventorySummary || "Şu an envanter boş."}
   `;
 
   return ai.chats.create({
     model: 'gemini-2.5-flash',
     config: {
       systemInstruction: systemInstruction,
+      temperature: 0.7, // Daha tutarlı cevaplar için
     },
   });
 };
@@ -122,7 +125,7 @@ export const analyzeMedicalImage = async (base64Data: string, promptText: string
   const ai = getAI();
   
   const response = await ai.models.generateContent({
-    model: 'gemini-2.5-flash', // 2.5 Flash supports vision and is stable
+    model: 'gemini-2.5-flash',
     contents: {
       parts: [
         {
@@ -158,7 +161,7 @@ export const transcribeAudio = async (base64Audio: string, mimeType: string): Pr
           }
         },
         {
-          text: "Bu ses kaydını Türkçe metne çevir."
+          text: "Bu ses kaydını Türkçe metne çevir. Sadece konuşulanları yaz."
         }
       ]
     }

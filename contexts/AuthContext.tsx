@@ -1,79 +1,112 @@
+
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { User, RecommendationRecord } from '../types';
+import { authService } from '../services/authService';
 
 interface AuthContextType {
   user: User | null;
-  login: (email: string, name: string) => void;
+  loading: boolean;
+  login: (email: string, password: string) => Promise<void>;
+  register: (email: string, password: string, name: string, role: 'pharmacist' | 'patient') => Promise<void>;
+  createStaff: (username: string, password: string, name: string) => Promise<void>;
   logout: () => void;
-  updateProfile: (data: Partial<User>) => void;
+  updateProfile: (data: Partial<User>) => Promise<void>;
   addToHistory: (record: RecommendationRecord) => void;
+  error: string | null;
+  clearError: () => void;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-  // Load from local storage on mount
+  // Load session on mount
   useEffect(() => {
-    const storedUser = localStorage.getItem('pharma_user');
-    if (storedUser) {
-      setUser(JSON.parse(storedUser));
+    const currentUser = authService.getCurrentUser();
+    if (currentUser) {
+      setUser(currentUser);
     }
+    setLoading(false);
   }, []);
 
-  const login = (email: string, name: string) => {
-    // Simulated login - in real app, check password
-    const newUser: User = {
-      id: Date.now().toString(),
-      email,
-      name,
-      history: []
-    };
-    
-    // Check if exists in "DB" (localStorage) to preserve history/profile
-    const storedDb = localStorage.getItem('pharma_users_db');
-    let db = storedDb ? JSON.parse(storedDb) : {};
-    
-    if (db[email]) {
-      setUser(db[email]);
-      localStorage.setItem('pharma_user', JSON.stringify(db[email]));
-    } else {
+  const clearError = () => setError(null);
+
+  const login = async (email: string, password: string) => {
+    setLoading(true);
+    setError(null);
+    try {
+      const loggedUser = await authService.login(email, password);
+      setUser(loggedUser);
+    } catch (err: any) {
+      setError(err.message || 'Giriş başarısız.');
+      throw err;
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const register = async (email: string, password: string, name: string, role: 'pharmacist' | 'patient') => {
+    setLoading(true);
+    setError(null);
+    try {
+      const newUser = await authService.register(email, password, name, role);
       setUser(newUser);
-      localStorage.setItem('pharma_user', JSON.stringify(newUser));
-      db[email] = newUser;
-      localStorage.setItem('pharma_users_db', JSON.stringify(db));
+    } catch (err: any) {
+      setError(err.message || 'Kayıt başarısız.');
+      throw err;
+    } finally {
+      setLoading(false);
     }
   };
 
-  const logout = () => {
+  const createStaff = async (username: string, password: string, name: string) => {
+      setError(null);
+      try {
+          if (!user?.email) throw new Error("Oturum bulunamadı");
+          await authService.registerStaff(user.email, username, password, name);
+      } catch (err: any) {
+          setError(err.message || 'Personel oluşturulamadı.');
+          throw err;
+      }
+  };
+
+  const logout = async () => {
+    await authService.logout();
     setUser(null);
-    localStorage.removeItem('pharma_user');
   };
 
-  const updateProfile = (data: Partial<User>) => {
+  const updateProfile = async (data: Partial<User>) => {
     if (!user) return;
-    const updatedUser = { ...user, ...data };
-    setUser(updatedUser);
-    localStorage.setItem('pharma_user', JSON.stringify(updatedUser));
-    
-    // Update DB
-    const storedDb = localStorage.getItem('pharma_users_db');
-    if (storedDb) {
-      const db = JSON.parse(storedDb);
-      db[user.email] = updatedUser;
-      localStorage.setItem('pharma_users_db', JSON.stringify(db));
+    try {
+      const updatedUser = await authService.updateUserProfile(user.email, data);
+      setUser(updatedUser);
+    } catch (err) {
+      console.error("Profil güncellenemedi", err);
     }
   };
 
-  const addToHistory = (record: RecommendationRecord) => {
+  const addToHistory = async (record: RecommendationRecord) => {
     if (!user) return;
-    const updatedHistory = [record, ...user.history];
-    updateProfile({ history: updatedHistory });
+    const updatedHistory = [record, ...(user.history || [])];
+    await updateProfile({ history: updatedHistory });
   };
 
   return (
-    <AuthContext.Provider value={{ user, login, logout, updateProfile, addToHistory }}>
+    <AuthContext.Provider value={{ 
+      user, 
+      loading, 
+      error, 
+      login, 
+      register, 
+      createStaff,
+      logout, 
+      updateProfile, 
+      addToHistory,
+      clearError
+    }}>
       {children}
     </AuthContext.Provider>
   );

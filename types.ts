@@ -19,6 +19,7 @@ export interface User {
   id: string;
   name: string;
   email: string;
+  role: 'pharmacist' | 'patient'; // Rol eklendi
   age?: number;
   gender?: 'Erkek' | 'Kadın' | 'Diğer';
   allergies?: string;
