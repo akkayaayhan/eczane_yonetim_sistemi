@@ -20,13 +20,13 @@ const initDB = () => {
     const adminUser = {
       id: 'admin-1',
       name: 'Baş Eczacı',
-      email: 'bozansurucu', // İstenilen kullanıcı adı
-      passwordHash: hashPassword('Urfa.63'), // İstenilen şifre
+      email: 'bozansurucu', // Changed to requested username
+      passwordHash: hashPassword('Urfa.63'), // Changed to requested password
       role: 'pharmacist',
       history: [],
       createdAt: Date.now()
     };
-    // Anahtar olarak da kullanıcı adını kullanıyoruz
+    // Use username as key
     localStorage.setItem(DB_KEY, JSON.stringify({ [adminUser.email]: adminUser }));
   }
 };
@@ -90,32 +90,34 @@ export const authService = {
   },
 
   // Personel kaydı (Oturum açmaz, sadece veritabanına ekler)
-  async registerStaff(adminEmail: string, newStaffEmail: string, password: string, name: string): Promise<void> {
+  async registerStaff(adminEmail: string, newStaffUsername: string, password: string, name: string): Promise<void> {
     await delay(800);
 
-    // Admin kontrolü (Basit yetki kontrolü)
+    // Admin kontrolü
     const db = JSON.parse(localStorage.getItem(DB_KEY) || '{}');
     const admin = db[adminEmail];
+    
+    // Basit yetki kontrolü
     if (!admin || admin.role !== 'pharmacist') {
         throw new Error("Bu işlem için yetkiniz yok.");
     }
 
-    if (db[newStaffEmail]) {
+    if (db[newStaffUsername]) {
       throw new Error('Bu kullanıcı adı zaten kullanımda.');
     }
 
     const newStaff = {
       id: `staff-${Date.now()}`,
-      email: newStaffEmail,
+      email: newStaffUsername, // Username stored in email field
       name: name,
       passwordHash: hashPassword(password),
-      role: 'pharmacist', // Çalışanlar da eczacı yetkisine sahip olur
+      role: 'pharmacist', // Personel de eczacı yetkisine sahip
       history: [],
       createdAt: Date.now(),
       createdBy: adminEmail
     };
 
-    db[newStaffEmail] = newStaff;
+    db[newStaffUsername] = newStaff;
     localStorage.setItem(DB_KEY, JSON.stringify(db));
   },
 
@@ -147,10 +149,10 @@ export const authService = {
     return safeUser as User;
   },
 
-  // Tüm personeli listeleme (Sadece demo amaçlı veritabanından çekme)
   async getStaffList(): Promise<User[]> {
     await delay(500);
     const db = JSON.parse(localStorage.getItem(DB_KEY) || '{}');
+    // Sadece pharmacist rolündeki kullanıcıları döndür
     return Object.values(db).filter((u: any) => u.role === 'pharmacist') as User[];
   }
 };
