@@ -3,7 +3,7 @@ import { Send, User, Bot, Loader2 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import { Product, Message } from '../types';
 import { createPharmacyChat } from '../services/gemini';
-import { Chat } from '@google/genai';
+import { Chat, GenerateContentResponse } from '@google/genai';
 
 interface Props {
   inventory: Product[];
@@ -20,7 +20,11 @@ const ChatConsultant: React.FC<Props> = ({ inventory }) => {
 
   // Initialize chat session
   useEffect(() => {
-    chatRef.current = createPharmacyChat(inventory);
+    try {
+      chatRef.current = createPharmacyChat(inventory);
+    } catch (e) {
+      console.error("Chat başlatılamadı:", e);
+    }
   }, [inventory]);
 
   useEffect(() => {
@@ -30,7 +34,12 @@ const ChatConsultant: React.FC<Props> = ({ inventory }) => {
   }, [messages]);
 
   const handleSend = async () => {
-    if (!input.trim() || !chatRef.current) return;
+    if (!input.trim()) return;
+    
+    // Re-initialize if lost
+    if (!chatRef.current) {
+      chatRef.current = createPharmacyChat(inventory);
+    }
 
     const userMsg: Message = {
       id: Date.now().toString(),
@@ -43,27 +52,37 @@ const ChatConsultant: React.FC<Props> = ({ inventory }) => {
     setInput('');
     setIsLoading(true);
 
+    const responseId = (Date.now() + 1).toString();
+    setMessages(prev => [...prev, { id: responseId, role: 'model', content: '', timestamp: Date.now() }]);
+
     try {
       // Streaming response
       const result = await chatRef.current.sendMessageStream({ message: userMsg.content });
       
       let fullResponse = '';
-      const responseId = (Date.now() + 1).toString();
       
-      // Add placeholder for model message
-      setMessages(prev => [...prev, { id: responseId, role: 'model', content: '', timestamp: Date.now() }]);
-
       for await (const chunk of result) {
-         const text = (chunk as any).text || '';
-         fullResponse += text;
+         const c = chunk as GenerateContentResponse;
+         const text = c.text; // Safe access via getter
          
-         setMessages(prev => prev.map(m => 
-            m.id === responseId ? { ...m, content: fullResponse } : m
-         ));
+         if (text) {
+           fullResponse += text;
+           setMessages(prev => prev.map(m => 
+              m.id === responseId ? { ...m, content: fullResponse } : m
+           ));
+         }
       }
-    } catch (error) {
-      console.error(error);
-      setMessages(prev => [...prev, { id: Date.now().toString(), role: 'model', content: 'Üzgünüm, bir bağlantı hatası oluştu.', timestamp: Date.now() }]);
+    } catch (error: any) {
+      console.error("Chat Error:", error);
+      let errorMsg = 'Üzgünüm, bir bağlantı hatası oluştu.';
+      
+      if (error.message?.includes('API_KEY')) {
+        errorMsg = 'API Anahtarı eksik veya hatalı. Lütfen yapılandırmayı kontrol edin.';
+      }
+
+      setMessages(prev => prev.map(m => 
+        m.id === responseId ? { ...m, content: errorMsg } : m
+      ));
     } finally {
       setIsLoading(false);
     }
@@ -74,7 +93,7 @@ const ChatConsultant: React.FC<Props> = ({ inventory }) => {
       <div className="p-4 bg-slate-50 border-b border-slate-200 flex items-center gap-2">
         <Bot className="text-blue-600" />
         <h2 className="font-semibold text-slate-700">PharmaAI Chat</h2>
-        <span className="text-xs px-2 py-0.5 bg-green-100 text-green-700 rounded-full ml-auto">Gemini 3.0 Pro</span>
+        <span className="text-xs px-2 py-0.5 bg-green-100 text-green-700 rounded-full ml-auto">Gemini 2.5 Flash</span>
       </div>
 
       <div className="flex-1 overflow-y-auto p-4 space-y-6 bg-slate-50/50" ref={scrollRef}>
@@ -88,7 +107,7 @@ const ChatConsultant: React.FC<Props> = ({ inventory }) => {
             </div>
           </div>
         ))}
-        {isLoading && (
+        {isLoading && messages[messages.length - 1]?.content === '' && (
           <div className="flex gap-3">
             <div className="w-8 h-8 rounded-full bg-emerald-600 flex items-center justify-center shrink-0">
               <Loader2 size={16} className="text-white animate-spin" />

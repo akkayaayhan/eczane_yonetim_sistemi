@@ -86,12 +86,16 @@ export const createPharmacyChat = (inventory: Product[]) => {
   const ai = getAI();
   const systemInstruction = `
     Sen PharmaAI, eczane asistanısın. Türkçe konuşuyorsun.
-    Aşağıdaki envantere erişimin var. Sorulara bu envanter ışığında cevap ver.
-    Envanter: ${JSON.stringify(inventory.map(p => p.name).join(", "))}
+    Kullanıcı sana sağlık sorunları veya ilaçlar hakkında soru soracak.
+    
+    Aşağıdaki envantere erişimin var. Sorulara öncelikle bu envanterdeki ürünleri önererek cevap ver:
+    ${JSON.stringify(inventory.map(p => `${p.name} (${p.category}): ${p.description}`).join(", "))}
+
+    Eğer envanterde çözüm yoksa, genel tıbbi tavsiye ver ama mutlaka "bir doktora danışın" uyarısını ekle.
   `;
 
   return ai.chats.create({
-    model: 'gemini-3-pro-preview',
+    model: 'gemini-2.5-flash', // Faster model for chat interactions
     config: {
       systemInstruction: systemInstruction,
     },
