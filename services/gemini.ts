@@ -1,7 +1,26 @@
 import { GoogleGenAI, GenerateContentResponse, Chat } from "@google/genai";
 import { Product, User } from "../types";
 
-const getAI = () => new GoogleGenAI({ apiKey: process.env.API_KEY });
+// Güvenli API Anahtarı Erişimi
+const getAPIKey = () => {
+  // 1. Vercel/Node ortamı kontrolü
+  if (process.env.API_KEY) return process.env.API_KEY;
+  
+  // 2. Vite ortamı kontrolü (import.meta.env)
+  // @ts-ignore
+  if (typeof import.meta !== 'undefined' && import.meta.env && import.meta.env.VITE_API_KEY) {
+    // @ts-ignore
+    return import.meta.env.VITE_API_KEY;
+  }
+  
+  // 3. Global tanımlama kontrolü (fallback)
+  if ((window as any).API_KEY) return (window as any).API_KEY;
+
+  console.warn("API Anahtarı bulunamadı! Lütfen Vercel ayarlarından API_KEY veya VITE_API_KEY ekleyin.");
+  return ''; 
+};
+
+const getAI = () => new GoogleGenAI({ apiKey: getAPIKey() });
 
 /**
  * Generates a drug recommendation based on inventory and complaint.

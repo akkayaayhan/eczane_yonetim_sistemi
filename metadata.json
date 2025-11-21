@@ -1,5 +1,5 @@
 {
-  "name": "PharmaAI Asistan",
+  "name": "Eczane İlaç Yönetim Sistemi",
   "description": "Eczacılar için yapay zeka destekli ilaç öneri, reçete analizi ve sesli asistan uygulaması.",
   "requestFramePermissions": [
     "camera",
