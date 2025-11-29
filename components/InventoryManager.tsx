@@ -1,5 +1,5 @@
 import React, { useState, useRef } from 'react';
-import { Upload, FileSpreadsheet, Trash2, Plus } from 'lucide-react';
+import { Upload, FileSpreadsheet, Trash2, Plus, Edit, Save, X, Search } from 'lucide-react';
 import { Product } from '../types';
 
 interface Props {
@@ -10,6 +10,14 @@ interface Props {
 const InventoryManager: React.FC<Props> = ({ inventory, setInventory }) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [isDragging, setIsDragging] = useState(false);
+  const [searchTerm, setSearchTerm] = useState('');
+
+  // Modal State
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [editingProduct, setEditingProduct] = useState<Product | null>(null);
+  const [formData, setFormData] = useState<Partial<Product>>({
+    name: '', category: '', description: '', stock: 0, usage: ''
+  });
 
   // Helper to parse CSV (Simulating Excel for browser environment simplicity)
   const parseCSV = (text: string) => {
@@ -51,17 +59,74 @@ const InventoryManager: React.FC<Props> = ({ inventory, setInventory }) => {
     setInventory([...inventory, ...demo]);
   };
 
+  // CRUD Operations
+  const handleDelete = (id: string) => {
+    if (window.confirm('Bu ürünü silmek istediğinize emin misiniz?')) {
+      setInventory(inventory.filter(p => p.id !== id));
+    }
+  };
+
+  const openAddModal = () => {
+    setEditingProduct(null);
+    setFormData({ name: '', category: '', description: '', stock: 0, usage: '' });
+    setIsModalOpen(true);
+  };
+
+  const openEditModal = (product: Product) => {
+    setEditingProduct(product);
+    setFormData({ ...product });
+    setIsModalOpen(true);
+  };
+
+  const handleSave = (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    if (editingProduct) {
+      // Update existing
+      const updatedInventory = inventory.map(p => 
+        p.id === editingProduct.id ? { ...p, ...formData } as Product : p
+      );
+      setInventory(updatedInventory);
+    } else {
+      // Create new
+      const newProduct: Product = {
+        id: `prod-${Date.now()}`,
+        name: formData.name || 'Yeni Ürün',
+        category: formData.category || 'Genel',
+        description: formData.description || '',
+        stock: Number(formData.stock) || 0,
+        usage: formData.usage || ''
+      };
+      setInventory([...inventory, newProduct]);
+    }
+    setIsModalOpen(false);
+  };
+
+  // Filtered List
+  const filteredInventory = inventory.filter(item => 
+    item.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    item.category.toLowerCase().includes(searchTerm.toLowerCase())
+  );
+
   return (
-    <div className="p-2 md:p-6 max-w-5xl mx-auto">
-      <div className="mb-6 md:mb-8 text-center">
-        <h2 className="text-xl md:text-2xl font-bold text-slate-800 mb-2">Eczane Envanter Yönetimi</h2>
-        <p className="text-sm md:text-base text-slate-600">Ürünlerinizi yükleyin (.csv) veya demo verisi ekleyin.</p>
+    <div className="p-2 md:p-6 max-w-6xl mx-auto">
+      <div className="flex flex-col md:flex-row justify-between items-center mb-8 gap-4">
+        <div>
+          <h2 className="text-xl md:text-2xl font-bold text-slate-800">Eczane Envanter Yönetimi</h2>
+          <p className="text-sm text-slate-500">Stok takibi, ürün ekleme ve düzenleme.</p>
+        </div>
+        <button 
+          onClick={openAddModal}
+          className="bg-emerald-600 hover:bg-emerald-700 text-white px-6 py-3 rounded-xl font-semibold flex items-center gap-2 shadow-lg shadow-emerald-200 transition-all"
+        >
+          <Plus size={20} /> Yeni Ürün Ekle
+        </button>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6 mb-8">
-        {/* Upload Area */}
+      {/* Quick Actions Grid */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8">
         <div 
-          className={`border-2 border-dashed rounded-xl p-6 md:p-8 flex flex-col items-center justify-center text-center cursor-pointer transition-colors ${isDragging ? 'border-blue-500 bg-blue-50' : 'border-slate-300 hover:border-blue-400'}`}
+          className={`border-2 border-dashed rounded-xl p-6 flex items-center gap-4 cursor-pointer transition-colors ${isDragging ? 'border-blue-500 bg-blue-50' : 'border-slate-300 hover:border-blue-400 bg-white'}`}
           onDragOver={(e) => { e.preventDefault(); setIsDragging(true); }}
           onDragLeave={() => setIsDragging(false)}
           onDrop={(e) => {
@@ -76,65 +141,106 @@ const InventoryManager: React.FC<Props> = ({ inventory, setInventory }) => {
           }}
           onClick={() => fileInputRef.current?.click()}
         >
-          <FileSpreadsheet className="w-10 h-10 md:w-12 md:h-12 text-blue-500 mb-3 md:mb-4" />
-          <h3 className="font-semibold text-base md:text-lg text-slate-700">Excel/CSV Dosyası Yükle</h3>
-          <p className="text-xs md:text-sm text-slate-500 mt-2">Dosyayı sürükleyin veya tıklayın</p>
-          <input 
-            type="file" 
-            ref={fileInputRef} 
-            className="hidden" 
-            accept=".csv,.txt"
-            onChange={handleFileUpload}
-          />
+          <div className="w-12 h-12 rounded-full bg-blue-100 flex items-center justify-center text-blue-600">
+             <FileSpreadsheet size={24} />
+          </div>
+          <div>
+            <h3 className="font-semibold text-slate-700">Toplu Yükle (Excel/CSV)</h3>
+            <p className="text-xs text-slate-500">Dosyayı sürükleyin veya tıklayın</p>
+          </div>
+          <input type="file" ref={fileInputRef} className="hidden" accept=".csv,.txt" onChange={handleFileUpload} />
         </div>
 
-        {/* Demo Data Button */}
         <div 
           onClick={addDemoData}
-          className="border-2 border-slate-200 rounded-xl p-6 md:p-8 flex flex-col items-center justify-center text-center cursor-pointer hover:border-green-400 hover:bg-green-50 transition-colors"
+          className="border border-slate-200 rounded-xl p-6 flex items-center gap-4 cursor-pointer hover:border-green-400 hover:bg-green-50 bg-white transition-colors"
         >
-          <Plus className="w-10 h-10 md:w-12 md:h-12 text-green-500 mb-3 md:mb-4" />
-          <h3 className="font-semibold text-base md:text-lg text-slate-700">Demo Verisi Yükle</h3>
-          <p className="text-xs md:text-sm text-slate-500 mt-2">Test için örnek ilaçlar ekle</p>
+          <div className="w-12 h-12 rounded-full bg-green-100 flex items-center justify-center text-green-600">
+             <Save size={24} />
+          </div>
+          <div>
+            <h3 className="font-semibold text-slate-700">Demo Verisi Yükle</h3>
+            <p className="text-xs text-slate-500">Test için örnek ilaçlar ekle</p>
+          </div>
         </div>
       </div>
 
-      {/* Inventory List */}
+      {/* Search & List */}
       <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
-        <div className="p-4 bg-slate-50 border-b border-slate-200 flex justify-between items-center">
-          <h3 className="font-semibold text-slate-700 text-sm md:text-base">Yüklü Ürünler ({inventory.length})</h3>
-          {inventory.length > 0 && (
-            <button 
-              onClick={() => setInventory([])}
-              className="text-red-500 hover:text-red-700 text-xs md:text-sm flex items-center gap-1"
-            >
-              <Trash2 size={16} /> Temizle
-            </button>
-          )}
+        <div className="p-4 bg-slate-50 border-b border-slate-200 flex flex-col md:flex-row justify-between items-center gap-4">
+          <div className="relative w-full md:w-64">
+             <input 
+               type="text" 
+               placeholder="Ürün Ara..." 
+               value={searchTerm}
+               onChange={(e) => setSearchTerm(e.target.value)}
+               className="w-full pl-10 pr-4 py-2 rounded-lg border border-slate-300 focus:border-emerald-500 outline-none text-sm"
+             />
+             <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
+          </div>
+          
+          <div className="flex items-center gap-4">
+             <span className="text-sm text-slate-500 font-medium">Toplam: {inventory.length} Ürün</span>
+             {inventory.length > 0 && (
+              <button 
+                onClick={() => { if(window.confirm('Tüm envanter silinecek?')) setInventory([]) }}
+                className="text-red-500 hover:text-red-700 text-xs font-bold uppercase tracking-wide"
+              >
+                Tümünü Temizle
+              </button>
+            )}
+          </div>
         </div>
+
         <div className="overflow-x-auto">
           <table className="w-full text-left text-sm text-slate-600 whitespace-nowrap md:whitespace-normal">
-            <thead className="bg-slate-50 text-slate-800 font-semibold">
+            <thead className="bg-slate-50 text-slate-800 font-semibold border-b border-slate-200">
               <tr>
-                <th className="p-3 md:p-4">Ürün Adı</th>
-                <th className="p-3 md:p-4">Kategori</th>
-                <th className="p-3 md:p-4 hidden md:table-cell">Kullanım</th>
-                <th className="p-3 md:p-4 text-right">Stok</th>
+                <th className="p-4 w-1/4">Ürün Adı</th>
+                <th className="p-4 w-1/6">Kategori</th>
+                <th className="p-4 w-1/3 hidden md:table-cell">Kullanım</th>
+                <th className="p-4 w-1/12 text-center">Stok</th>
+                <th className="p-4 w-1/12 text-right">İşlemler</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {inventory.map((item) => (
-                <tr key={item.id} className="hover:bg-slate-50">
-                  <td className="p-3 md:p-4 font-medium text-slate-900">{item.name}</td>
-                  <td className="p-3 md:p-4"><span className="px-2 py-1 rounded-full bg-blue-100 text-blue-700 text-xs">{item.category}</span></td>
-                  <td className="p-3 md:p-4 hidden md:table-cell truncate max-w-xs">{item.usage}</td>
-                  <td className="p-3 md:p-4 text-right">{item.stock}</td>
+              {filteredInventory.map((item) => (
+                <tr key={item.id} className="hover:bg-slate-50 transition-colors group">
+                  <td className="p-4 font-medium text-slate-900">{item.name}</td>
+                  <td className="p-4"><span className="px-2 py-1 rounded-full bg-blue-100 text-blue-700 text-xs font-medium">{item.category}</span></td>
+                  <td className="p-4 hidden md:table-cell truncate max-w-xs text-slate-500">{item.usage}</td>
+                  <td className="p-4 text-center">
+                    <span className={`px-2 py-1 rounded font-bold text-xs ${item.stock < 10 ? 'bg-red-100 text-red-600' : 'bg-green-100 text-green-700'}`}>
+                      {item.stock}
+                    </span>
+                  </td>
+                  <td className="p-4 text-right">
+                    <div className="flex items-center justify-end gap-2">
+                      <button 
+                        onClick={() => openEditModal(item)}
+                        className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                        title="Düzenle"
+                      >
+                        <Edit size={16} />
+                      </button>
+                      <button 
+                        onClick={() => handleDelete(item.id)}
+                        className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                        title="Sil"
+                      >
+                        <Trash2 size={16} />
+                      </button>
+                    </div>
+                  </td>
                 </tr>
               ))}
-              {inventory.length === 0 && (
+              {filteredInventory.length === 0 && (
                 <tr>
-                  <td colSpan={4} className="p-8 text-center text-slate-400 text-sm">
-                    Henüz ürün yüklenmedi.
+                  <td colSpan={5} className="p-12 text-center text-slate-400">
+                    <div className="flex flex-col items-center gap-2">
+                       <Search size={32} className="opacity-20" />
+                       <p>Ürün bulunamadı.</p>
+                    </div>
                   </td>
                 </tr>
               )}
@@ -142,6 +248,98 @@ const InventoryManager: React.FC<Props> = ({ inventory, setInventory }) => {
           </table>
         </div>
       </div>
+
+      {/* Add/Edit Modal */}
+      {isModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm animate-fade-in">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden animate-scale-in">
+            <div className="px-6 py-4 border-b border-slate-100 flex justify-between items-center bg-slate-50">
+              <h3 className="font-bold text-lg text-slate-800">
+                {editingProduct ? 'Ürünü Düzenle' : 'Yeni Ürün Ekle'}
+              </h3>
+              <button onClick={() => setIsModalOpen(false)} className="text-slate-400 hover:text-slate-600">
+                <X size={20} />
+              </button>
+            </div>
+            
+            <form onSubmit={handleSave} className="p-6 space-y-4">
+              <div>
+                <label className="block text-xs font-bold text-slate-500 uppercase mb-1 ml-1">Ürün Adı</label>
+                <input 
+                  type="text" 
+                  required
+                  value={formData.name}
+                  onChange={e => setFormData({...formData, name: e.target.value})}
+                  className="w-full p-3 rounded-xl border border-slate-200 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100 outline-none"
+                  placeholder="İlaç adı"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-bold text-slate-500 uppercase mb-1 ml-1">Kategori</label>
+                  <input 
+                    type="text" 
+                    required
+                    value={formData.category}
+                    onChange={e => setFormData({...formData, category: e.target.value})}
+                    className="w-full p-3 rounded-xl border border-slate-200 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100 outline-none"
+                    placeholder="Örn: Ağrı Kesici"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-slate-500 uppercase mb-1 ml-1">Stok Adedi</label>
+                  <input 
+                    type="number" 
+                    required
+                    min="0"
+                    value={formData.stock}
+                    onChange={e => setFormData({...formData, stock: parseInt(e.target.value)})}
+                    className="w-full p-3 rounded-xl border border-slate-200 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100 outline-none"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-500 uppercase mb-1 ml-1">Açıklama</label>
+                <textarea 
+                  value={formData.description}
+                  onChange={e => setFormData({...formData, description: e.target.value})}
+                  className="w-full p-3 rounded-xl border border-slate-200 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100 outline-none h-20 resize-none"
+                  placeholder="İlaç hakkında kısa bilgi..."
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-500 uppercase mb-1 ml-1">Kullanım Şekli</label>
+                <input 
+                  type="text" 
+                  value={formData.usage}
+                  onChange={e => setFormData({...formData, usage: e.target.value})}
+                  className="w-full p-3 rounded-xl border border-slate-200 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100 outline-none"
+                  placeholder="Örn: Günde 2 kez tok karna"
+                />
+              </div>
+
+              <div className="pt-4 flex gap-3">
+                <button 
+                  type="button" 
+                  onClick={() => setIsModalOpen(false)}
+                  className="flex-1 py-3 text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-xl font-medium transition-colors"
+                >
+                  İptal
+                </button>
+                <button 
+                  type="submit"
+                  className="flex-1 py-3 text-white bg-emerald-600 hover:bg-emerald-700 rounded-xl font-medium shadow-lg shadow-emerald-200 transition-colors flex justify-center items-center gap-2"
+                >
+                  <Save size={18} /> {editingProduct ? 'Güncelle' : 'Kaydet'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
