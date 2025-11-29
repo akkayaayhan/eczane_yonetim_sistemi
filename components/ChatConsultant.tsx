@@ -26,7 +26,11 @@ const ChatConsultant: React.FC<Props> = ({ inventory }) => {
       setInitError(null);
     } catch (e: any) {
       console.error("Chat başlatılamadı:", e);
-      setInitError(e.message || "API bağlantısı kurulamadı.");
+      if (e.message === 'API_KEY_MISSING') {
+          setInitError('API_KEY_MISSING');
+      } else {
+          setInitError(e.message || "API bağlantısı kurulamadı.");
+      }
     }
   };
 
@@ -48,10 +52,14 @@ const ChatConsultant: React.FC<Props> = ({ inventory }) => {
       try {
         chatRef.current = createPharmacyChat(inventory);
       } catch (e: any) {
+         let errorContent = `❌ Hata: ${e.message}`;
+         if (e.message === 'API_KEY_MISSING') {
+             errorContent = '⚠️ API Anahtarı eksik. Lütfen giriş sayfasındaki ayarlar menüsünden ekleyin.';
+         }
          setMessages(prev => [...prev, { 
              id: Date.now().toString(), 
              role: 'model', 
-             content: `❌ Hata: API Anahtarı eksik veya yapılandırma hatalı. (${e.message})`, 
+             content: errorContent, 
              timestamp: Date.now() 
          }]);
          return;
@@ -93,9 +101,8 @@ const ChatConsultant: React.FC<Props> = ({ inventory }) => {
       console.error("Chat Error Full:", error);
       let errorMsg = `Bir hata oluştu: ${error.message || 'Bilinmeyen Hata'}`;
       
-      // Kullanıcı dostu hata mesajları
-      if (errorMsg.includes('API_KEY')) {
-        errorMsg = '🚨 API Anahtarı bulunamadı. Lütfen Vercel ayarlarından (Environment Variables) API_KEY ekleyin.';
+      if (errorMsg.includes('API_KEY_MISSING') || errorMsg.includes('API_KEY')) {
+        errorMsg = '🚨 API Anahtarı bulunamadı. Lütfen "Çıkış Yap" butonuna basıp Giriş Ekranına dönün ve sağ üst köşedeki ⚙️ Ayarlar ikonundan API anahtarınızı girin.';
       } else if (errorMsg.includes('400')) {
         errorMsg = '⚠️ İstek çok büyük veya geçersiz. (400 Bad Request)';
       } else if (errorMsg.includes('429')) {
@@ -142,9 +149,15 @@ const ChatConsultant: React.FC<Props> = ({ inventory }) => {
 
       <div className="flex-1 overflow-y-auto p-4 space-y-6 bg-slate-50/50" ref={scrollRef}>
         {initError && (
-            <div className="p-4 bg-red-50 border border-red-200 rounded-xl text-red-800 text-sm mb-4">
-                <strong>Sistem Hatası:</strong> {initError}
-                <br/>Lütfen API anahtarınızın "Environment Variables" kısmında tanımlı olduğundan emin olun.
+            <div className="p-4 bg-red-50 border border-red-200 rounded-xl text-red-800 text-sm mb-4 animate-pulse">
+                <strong>Sistem Hatası:</strong> API Anahtarı eksik.
+                <br/><br/>
+                Lütfen şu adımları izleyin:
+                <ol className="list-decimal ml-5 mt-2 space-y-1">
+                    <li>Sol menüden "Çıkış Yap" deyin.</li>
+                    <li>Giriş ekranında sağ üstteki ⚙️ (Ayarlar) ikonuna tıklayın.</li>
+                    <li>Gemini API anahtarınızı (AIzaSy...) yapıştırıp kaydedin.</li>
+                </ol>
             </div>
         )}
         

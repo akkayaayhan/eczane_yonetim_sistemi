@@ -1,7 +1,6 @@
-
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
-import { HeartPulse, ArrowRight, ShieldCheck, User, Lock, Loader2, AlertTriangle } from 'lucide-react';
+import { HeartPulse, ArrowRight, ShieldCheck, User, Lock, Loader2, AlertTriangle, Settings, Save, X } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
 const Auth: React.FC = () => {
@@ -11,21 +10,26 @@ const Auth: React.FC = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [name, setName] = useState('');
-  const [localLoading, setLocalLoading] = useState(false); // UI loading state to prevent flicker
+  const [localLoading, setLocalLoading] = useState(false); 
+  
+  // API Key Manual Entry State
+  const [showSettings, setShowSettings] = useState(false);
+  const [customApiKey, setCustomApiKey] = useState('');
   
   const { login, register, error, clearError } = useAuth();
   const navigate = useNavigate();
 
-  // Tab değişince form ve hataları temizle
   useEffect(() => {
     clearError();
     setEmail('');
     setPassword('');
     setName('');
-    // Eczacı girişine geçerken register modunu kapat
     if (activeTab === 'pharmacist') {
         setIsRegistering(false);
     }
+    // Load existing custom key if any
+    const savedKey = localStorage.getItem('CUSTOM_API_KEY');
+    if (savedKey) setCustomApiKey(savedKey);
   }, [activeTab]);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -42,7 +46,6 @@ const Auth: React.FC = () => {
         await login(email, password);
       }
       
-      // Yönlendirme
       if (activeTab === 'pharmacist') {
         navigate('/inventory');
       } else {
@@ -50,14 +53,71 @@ const Auth: React.FC = () => {
       }
     } catch (err) {
       console.error(err);
-      // Hata Context'te set ediliyor, UI'da gösterilecek
     } finally {
       setLocalLoading(false);
     }
   };
 
+  const handleSaveApiKey = () => {
+    if(customApiKey.trim()) {
+      localStorage.setItem('CUSTOM_API_KEY', customApiKey.trim());
+      alert("API Anahtarı kaydedildi. Sayfa yenileniyor.");
+      window.location.reload();
+    } else {
+      localStorage.removeItem('CUSTOM_API_KEY');
+      alert("API Anahtarı silindi.");
+    }
+    setShowSettings(false);
+  };
+
   return (
-    <div className="min-h-[85vh] flex items-center justify-center bg-slate-50 p-4">
+    <div className="min-h-[85vh] flex items-center justify-center bg-slate-50 p-4 relative">
+      
+      {/* Settings Button */}
+      <button 
+        onClick={() => setShowSettings(!showSettings)}
+        className="absolute top-4 right-4 p-2 text-slate-400 hover:text-slate-600 bg-white rounded-full shadow-sm border border-slate-200"
+        title="Geliştirici Ayarları (API Key)"
+      >
+        <Settings size={20} />
+      </button>
+
+      {/* Settings Modal */}
+      {showSettings && (
+        <div className="absolute inset-0 z-50 bg-slate-50/95 backdrop-blur-sm flex items-center justify-center p-6 animate-fade-in">
+           <div className="bg-white p-6 rounded-2xl shadow-xl border border-slate-200 w-full max-w-sm relative">
+             <button 
+               onClick={() => setShowSettings(false)}
+               className="absolute top-4 right-4 text-slate-400 hover:text-slate-600"
+             >
+               <X size={20} />
+             </button>
+             <h3 className="font-bold text-slate-800 mb-4 flex items-center gap-2">
+               <Settings className="text-slate-500" size={18} /> API Yapılandırması
+             </h3>
+             <p className="text-xs text-slate-500 mb-4">
+               Vercel veya ortam değişkenleri çalışmıyorsa, Gemini API anahtarınızı buraya manuel olarak girebilirsiniz.
+             </p>
+             <div className="space-y-3">
+               <label className="text-xs font-bold text-slate-400 uppercase">Gemini API Key</label>
+               <input 
+                 type="password" 
+                 value={customApiKey}
+                 onChange={(e) => setCustomApiKey(e.target.value)}
+                 className="w-full p-3 border border-slate-200 rounded-lg text-sm font-mono focus:border-blue-500 outline-none"
+                 placeholder="AIzaSy..."
+               />
+               <button 
+                 onClick={handleSaveApiKey}
+                 className="w-full py-3 bg-slate-800 hover:bg-slate-700 text-white rounded-lg font-medium text-sm flex items-center justify-center gap-2"
+               >
+                 <Save size={16} /> Kaydet ve Yenile
+               </button>
+             </div>
+           </div>
+        </div>
+      )}
+
       <div className="bg-white rounded-2xl shadow-xl border border-slate-100 w-full max-w-md overflow-hidden animate-fade-in">
         
         {/* Tabs */}

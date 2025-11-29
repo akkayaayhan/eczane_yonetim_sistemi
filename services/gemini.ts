@@ -3,6 +3,13 @@ import { Product, User } from "../types";
 
 // Güvenli API Anahtarı Erişimi - Tüm olası değişkenleri dener
 const getAPIKey = () => {
+  // 0. LocalStorage Override (En kesin çözüm)
+  // Kullanıcı giriş ekranından manuel eklediyse bunu kullan
+  if (typeof window !== 'undefined') {
+    const manualKey = localStorage.getItem('CUSTOM_API_KEY');
+    if (manualKey) return manualKey;
+  }
+
   // 1. Standart process.env
   if (process.env.API_KEY) return process.env.API_KEY;
   if (process.env.REACT_APP_API_KEY) return process.env.REACT_APP_API_KEY;
@@ -26,7 +33,7 @@ const getAPIKey = () => {
 const getAI = () => {
   const key = getAPIKey();
   if (!key) {
-    throw new Error("API Anahtarı bulunamadı. Lütfen Vercel ayarlarından API_KEY veya VITE_API_KEY ekleyin.");
+    throw new Error("API_KEY_MISSING");
   }
   return new GoogleGenAI({ apiKey: key });
 };
@@ -79,6 +86,9 @@ export const getRecommendation = async (
     return response.text || "Bir öneri oluşturulamadı.";
   } catch (error: any) {
     console.error("Recommendation Error:", error);
+    if (error.message === 'API_KEY_MISSING') {
+      return "⚠️ API Anahtarı eksik. Lütfen giriş ekranındaki ayarlar menüsünden API anahtarınızı girin.";
+    }
     return `Hata oluştu: ${error.message || 'Bilinmeyen hata'}`;
   }
 };
@@ -90,7 +100,6 @@ export const createPharmacyChat = (inventory: Product[]) => {
   const ai = getAI();
   
   // OPTIMIZATION: Büyük envanterler hataya neden olur. Veriyi küçültüyoruz.
-  // Sadece ilk 50 ürünü detaylı al, geri kalanını alırsak token limiti dolabilir.
   const inventorySummary = inventory.slice(0, 60).map(p => 
     `- ${p.name} (${p.category}): ${p.usage}`
   ).join("\n");
